@@ -3,7 +3,7 @@ BeforeAll {
 	#Import-Module "C:\Path\To\file.psm1" -DisableNameChecking
     $ProjectRoot = "$PSScriptRoot\.."
 	$LibsDir = "$ProjectRoot\libs"
-	. "$LibsDir\script.ps1"
+	# . "$LibsDir\script.ps1"
     $LibPath = "$PSScriptRoot\data\requests"
 
 	# backup original cmdlet for calling during mock
@@ -11,7 +11,7 @@ BeforeAll {
 
 }
 
-Describe "SomeTEst" {
+Describe "SomeTest" {
 		It "Should return true " {
 			$true | Should -Be $true
 		}
