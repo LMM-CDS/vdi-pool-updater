@@ -1,4 +1,4 @@
-name: Test PowerShell code on Ubuntu
+name: Test PowerShell code
 on: push
 
 jobs:
@@ -44,6 +44,7 @@ jobs:
       - name: Perform a Pester test from the command-line
         shell: pwsh
         run: Test-Path resultsfile.log | Should -Be $true
+        working-directory: ./tests
       - name: Perform a Pester test from the Tests.ps1 file
         shell: pwsh
         run: |
