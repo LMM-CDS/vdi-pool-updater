@@ -45,6 +45,8 @@ jobs:
         shell: pwsh
         working-directory: ./tests
         run: |
+          Write-Output $PWD
+          gci env:
           Invoke-Pester Unit.Tests.ps1 -Passthru
           
   upload-pester-results:
