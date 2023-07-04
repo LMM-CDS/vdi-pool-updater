@@ -15,19 +15,10 @@
     $TS_DETECTION_ACTION_FAILURE = "Affichage du debugger"
     $TS_DETECTION_ACTION_SUCCESS = "TS Finished Successfully"
 
-    # $TestDataDeploymentFail = Get-Content "$TestDataPath/FAIL_LMM00731_16781473_201_49.json" | Out-String  | ConvertFrom-Json
-    $TestDataDeploymentSuccess = Import-Clixml "$TestDataPath/SUCCESS_LMM00731_16781473_201_327.xml"
     Mock Get-WmiObject { }
     $logger = [Logger]::new($TestLogFile, $false)
 }
 
-# Describe "Basic test" {
-#     It "simple test" {
-#         $mon = [MECMDeviceDeploymentMonitor]::new($logger, $SMS_SERVER, $SMS_SITECODE, $SMS_MONITORED_TS_NAME, $TEST_VM_NAME)
-#         Write-Host "wait"
-#     }
-
-# }
 
 Describe "getDeploymentSteps" {
     BeforeEach{
