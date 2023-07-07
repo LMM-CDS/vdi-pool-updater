@@ -1,2 +1,4 @@
 config.ps1
 config.test.ps1
+log/
+tests/log/
