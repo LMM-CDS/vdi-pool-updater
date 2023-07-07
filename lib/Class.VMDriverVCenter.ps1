@@ -39,8 +39,40 @@ class VMDriverVCenter {
             $this.Logger.Error($_)
             return
         }
-
     }
+    SnapshotVM($VMName, $SnapshotName){
+        $vm = Get-VM -Name $VMName
+        $this.Logger.Verbose("Taking snapshot of '$VMName' : '$SnapshotName'")
+        $snapstatus = New-Snapshot -vm $vm -name $snapshotname -confirm:$false -runasync:$false -Description (Get-Date)
+        $this.Logger.Verbose("Snapshot created")
+    }
+
+    [boolean] ShutdownVM([string] $VMName){
+        try {
+            $vm = VMware.VimAutomation.Core\Get-VM -Name $VMName
+            switch ($vm.PowerState) {
+                'PoweredOn' {
+                    $this.Logger.Verbose("VM is powered on'")
+                    $this.Logger.Info("Shutting down '$VMName'")
+                    Shutdown-VMGuest -VM $vm -Confirm:$false | Out-Null
+                    while ($vm.PowerState -eq 'PoweredOn') {
+                        $this.Logger.Verbose("VM is still powered on'")
+                        Start-Sleep 5
+                        $vm = Get-VM -Name $VMName
+                    }
+                }
+                Default {
+                }
+            }
+            $vm = Get-VM -Name $VMName
+            $this.Logger.Info("'$VMName' Is Powered off  : $($vm.PowerState)")
+            return $true
+        } Catch {
+            $this.Logger.Error($_)
+            return $false
+        }
+    }
+
 
     StartPXE([string] $VMName){
         $this.StartPXE($VMName, $false)
@@ -75,7 +107,7 @@ class VMDriverVCenter {
                 $this.Logger.Verbose("Opening Console Window")
                 Open-VMConsoleWindow -VM $VMName
             }
-            $this.Logger.Verbose("Waiting 30 seconds before reverting boot to disk")
+            $this.Logger.Verbose("Waiting 30 before reverting boot to disk")
             Start-Sleep -Seconds 30
 
             $this.Logger.Verbose("Reverting boot to disk")
