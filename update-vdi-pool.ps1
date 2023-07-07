@@ -4,7 +4,8 @@
 
 function Update-VDIPool($Logger, $VMName, $PoolName) {
     # try {
-    $Retries =
+    $Retries = 1
+    $VMGenerationSuccess = $false
     $CredentialVCenter = Get-StoredCredentials -Target $CREDENTIALS_TARGET_VCENTER
     $componentLogger = $Logger.GetChildLogger("VCenter-$PoolName")
     $VMDriver = [VMDriverVCenter]::new($VCENTER_SERVER, $VCENTER_PORT, $CredentialVCenter, $componentLogger)
@@ -21,6 +22,7 @@ function Update-VDIPool($Logger, $VMName, $PoolName) {
 
     While ($Retries -le $MAX_VM_DEPLOYMENT_RETRIES) {
         $Logger.Info("Attempt #$Retries / $MAX_VM_DEPLOYMENT_RETRIES of running OSD TS on '$VMName' :")
+
         $Retries = $Retries + 1
         Pushd "$($SMS_SiteCode):"
         $Logger.Info("Removing existing PXE deployments for device '$VMName'")
@@ -43,8 +45,10 @@ function Update-VDIPool($Logger, $VMName, $PoolName) {
         $timestamp = Get-Date -Format "yyyMMddhhmmss"
         $snapshotName = "VDI-$VMName-$timestamp"
         $VMDriver.SnapshotVM($VMName, $SnapshotName)
+        $VMGenerationSuccess = $true
         break
     }
+    if ($VMGenerationSuccess -ne $true) { return $false }
     $Logger.Info("Starting VDI Pool regeneration.")
     $Logger.Info("TO BE IMPLEMENTED !")
 
