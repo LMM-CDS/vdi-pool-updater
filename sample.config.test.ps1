@@ -10,3 +10,15 @@ $SMS_SITECODE = "<SITE CODE>"
 $SMS_MONITORED_TS_NAME = "<TS NAME TO MONITOR WHEN THE VDI DEPLOYMENT OCCURS>"
 $SMS_TS_SUCCESS_ActionName = "TS Finished Successfully"
 $SMS_TS_FAILURE_ActionName = "TS Execution Failed"
+
+
+$VDI_POOLS_AVAILABLES = @(
+    [PSCustomObject]@{
+        Name = "<POOL_NAME_1>"
+        VM   = "<VM_MASTER_1>"
+    },
+    [PSCustomObject]@{
+        Name = "<POOL_NAME_2>"
+        VM   = "<VM_MASTER_2>"
+    }
+)
