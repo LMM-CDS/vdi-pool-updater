@@ -23,3 +23,10 @@ $CREDENTIALS_TARGET_MECM    = "VDI-Pool-Updater-MECM-Account"
 # The time measured here start only after initial detection of the TS deployment (when step1 is reached)
 # which can takes 10 more minutes
 $SMS_TS_EXECUTION_MAX_EXECUTION_MINUTES = 60
+$SMS_TS_SUCCESS_ActionName = "TS Finished Successfully"
+$SMS_TS_FAILURE_ActionName = "TS Execution Failed"
+
+
+$MAX_VM_DEPLOYMENT_RETRIES = 4
+
+$LOGLEVEL = "Info"  # Error, Info, Verbose, Debug
