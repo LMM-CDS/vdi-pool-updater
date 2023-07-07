@@ -92,7 +92,7 @@ function Write-Log {
         [switch]$TeeToSTDOUT
     )
     $timestamp = Get-Date -Format "yyyy/MM/dd hh:mm:ss:fff"
-    $line = "$timestamp [$($Component.PadRight(25))] ($($Type.PadRight(8))) : $Message"
+    $line = "$timestamp [$($Component.PadRight(35))] ($($Type.PadRight(8))) : $Message"
     if ($TeeToSTDOUT) {
         Write-Host "$line"
     }
@@ -127,9 +127,11 @@ class Logger {
         $this.TeeToSTDOUT = $TeeToSTDOUT
         $this.Component = "Main"
         If (!(Test-Path $this.Path)) {
+            $parent = $(Split-Path -Parent $this.Path)
+            if (!(Test-Path $parent)){ New-Item -ItemType Directory $parent }
             Write-Output "" | Out-File $this.Path
         }
-        # $this.Info('Logger started')
+        $this.Debug('Logger started')
 
     }
 
