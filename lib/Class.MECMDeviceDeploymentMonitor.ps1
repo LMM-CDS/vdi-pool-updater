@@ -28,14 +28,15 @@ class MECMDeviceDeploymentMonitor {
         $this.DeviceName = $DeviceName
         $this.TaskSequenceName = $TaskSequenceName
         $this.CurrentStep = 0
-        # Push-Location "$($SMS_SiteCode):"
-        $this.TSPackageId = Get-WmiObject -ComputerName $SMS_Server -Namespace "Root\SMS\site_$($SMS_SiteCode)" -Query "SELECT PackageID FROM SMS_TaskSequencePackage WHERE Name='$TaskSequenceName'" | Select -ExpandProperty PackageID
+        $query = "SELECT PackageID FROM SMS_TaskSequencePackage WHERE Name='$TaskSequenceName'"
+        $this.Logger.Debug("TSPackageId query = $query")
+        $this.TSPackageId = Get-WmiObject -ComputerName $SMS_Server -Namespace "Root\SMS\site_$($SMS_SiteCode)" -Query $query | Select -ExpandProperty PackageID
         $this.Logger.Debug("TSPackageId = $($this.TSPackageId)")
-        # $this.TSPackageId = Get-CMTaskSequence -Name $TaskSequenceName -Fast | Select -ExpandProperty PackageId
-        $this.DeviceResourceId = Get-WmiObject -ComputerName $SMS_Server -Namespace "Root\SMS\site_$($SMS_SiteCode)" -Query "SELECT ResourceId FROM SMS_R_System WHERE Name='$DeviceName'" | Select -ExpandProperty ResourceId
+
+        $query = "SELECT ResourceId FROM SMS_R_System WHERE Name='$DeviceName'"
+        $this.Logger.Debug("DeviceResourceId query = $query")
+        $this.DeviceResourceId = Get-WmiObject -ComputerName $SMS_Server -Namespace "Root\SMS\site_$($SMS_SiteCode)" -Query $query | Select -ExpandProperty ResourceId
         $this.Logger.Debug("DeviceResourceId = $($this.DeviceResourceId)")
-        # $this.DeviceResourceId = Get-CMDevice -Name $DeviceName -Fast | Select -ExpandProperty ResourceId | select -ExpandProperty ResourceId
-        # Pop-Location
         $this.CacheLastRenewed = (get-date).AddMinutes(-10)
     }
 
@@ -48,9 +49,8 @@ class MECMDeviceDeploymentMonitor {
 
         $ts = Get-Date
         $lastRenew = (New-TimeSpan -Start $this.CacheLastRenewed -End $ts).TotalSeconds
-        $this.Logger.Debug("lastRenew = $lastRenew")
+        # $this.Logger.Debug("lastRenew = $lastRenew")
         if ($lastRenew -ge 10 ) {
-            $this.Logger.Debug("refreshing cache")
             $this._updateCachedDeployments()
         }
         return $this._CachedDeployments  `
@@ -60,8 +60,50 @@ class MECMDeviceDeploymentMonitor {
     }
 
     <#
-        Retrieve most recent SMS_TaskSequenceExecutionStatus result to detect only newer events
+        Wait until either Success or Failure action is reached
+        Thoses actions names are defined within global.config.ps1
+        return $true if the deployment has reached success step
+        return $false if the deployment has reached falure step or timeout is reached
     #>
+    [boolean] WatchDeploymentProgress(){
+        $this.Logger.Info("Waiting 10 minutes for initial communication")
+        $this.Logger.Verbose("Waiting for Step 1 of Task sequence")
+        $stepReachedBeforeTimeout = $this.getStepWhenAvailable(1, 10 * 60)
+        if (!$stepReachedBeforeTimeout) {
+            $this.Logger.Warning("The step 1 hasn't been reached after 10 minutes")
+            return $false
+        }
+        else {
+            $this.Logger.Info("Step 1 reached : the TS started successfully")
+        }
+
+        $this.Logger.Info("Waiting until one of the success or failure action occurs")
+        $this.Logger.Verbose("- Success Action Name : $Global:SMS_TS_SUCCESS_ActionName")
+        $this.Logger.Verbose("- Failure Action Name : $Global:SMS_TS_FAILURE_ActionName")
+
+        $timeoutDelay = 60 * $Global:SMS_TS_EXECUTION_MAX_EXECUTION_MINUTES
+        $stepReachedBeforeTimeout = $this.getStepWhenAvailableFromActionNames(@($Global:SMS_TS_SUCCESS_ActionName, $Global:SMS_TS_FAILURE_ActionName), $timeoutDelay)
+
+        if (!$stepReachedBeforeTimeout) {
+            $this.Logger.Error("$timeoutDelay maximum delay has been reached")
+            $this.Logger.Error("Something went wrong.")
+            return $false
+        }
+        if ($stepReachedBeforeTimeout.ActionName -eq $Global:SMS_TS_FAILURE_ActionName) {
+            $this.Logger.Error("Failure action name has been reached")
+            $this.Logger.Debug("Retrieved step value :")
+            $this.Logger.Debug("$($stepReachedBeforeTimeout|ConvertTo-Json)")
+            return $false
+        }
+
+        $this.Logger.Info("TS Deployment was successful on machine '$($this.DeviceName)'")
+        $this.Logger.Debug("Retrieved step value :")
+
+        $this.Logger.Debug("$($stepReachedBeforeTimeout|ConvertTo-Json)")
+        return $true
+    }
+
+    <# Save last SMS_TaskSequenceExecutionStatus result date, to detect only newer events #>
     [void]_SetStartMarker(){
         $query = "SELECT * FROM SMS_TaskSequenceExecutionStatus ORDER BY ExecutionTime Desc"
         $this.Logger.Debug("executing WMI query : $query")
@@ -71,6 +113,7 @@ class MECMDeviceDeploymentMonitor {
 
     }
 
+    <# Retrieve deployment information related to TSPackageId and DeviceResourceId. Only list events more recent than StartMarker#>
     [void]_updateCachedDeployments(){
         $query = "SELECT * FROM SMS_TaskSequenceExecutionStatus WHERE ExecutionTime>'$($this.StartMarker)' AND PackageID='$($this.TSPackageId)' AND ResourceID='$($this.DeviceResourceId)' AND Step >= $($this.CurrentStep) ORDER BY ExecutionTime Desc"
         $this.Logger.Debug("executing WMI query : $query")
@@ -137,7 +180,7 @@ class MECMDeviceDeploymentMonitor {
             }
             $ts = Get-Date
             $waitDuration = (New-TimeSpan -Start $startTime -End $ts).TotalSeconds
-            $this.Logger.Debug("ts = $ts   waitDuration = $waitDuration    startTime = $startTime")
+            $this.Logger.Debug("waitDuration = $waitDuration    maxWaitSeconds = $maxWaitSeconds")
         }
         $this.Logger.Warning("Timeout reached waitDuration ($waitDuration) > maxWaitSeconds ($maxWaitSeconds)")
         return $false
