@@ -5,22 +5,21 @@
 function Update-VDIPool($Logger, $VMName, $PoolName) {
     # try {
     $Retries = 1
-    $VMGenerationSuccess = $false
     $CredentialVCenter = Get-StoredCredentials -Target $CREDENTIALS_TARGET_VCENTER
     $componentLogger = $Logger.GetChildLogger("VCenter-$PoolName")
     $VMDriver = [VMDriverVCenter]::new($VCENTER_SERVER, $VCENTER_PORT, $CredentialVCenter, $componentLogger)
-
+    $VMBuildSuccess = $false
 
     $CredentialMECM = Get-StoredCredentials -Target $CREDENTIALS_TARGET_MECM # TODO : need to be used !
-    try {
-        $MECMMonitor = [MECMDeviceDeploymentMonitor]::new($Logger.GetChildLogger("MECMMonitor-$PoolName"), $SMS_SERVER, $SMS_SITECODE, $SMS_MONITORED_TS_NAME, $VMName)
-    }
-    catch {
-        $Logger.Error($_)
-        return
-    }
 
     While ($Retries -le $MAX_VM_DEPLOYMENT_RETRIES) {
+        try {
+            $MECMMonitor = [MECMDeviceDeploymentMonitor]::new($Logger.GetChildLogger("MECMMonitor-$PoolName"), $SMS_SERVER, $SMS_SITECODE, $SMS_MONITORED_TS_NAME, $VMName)
+        }
+        catch {
+            $Logger.Error($_)
+            return
+        }
         $Logger.Info("Attempt #$Retries / $MAX_VM_DEPLOYMENT_RETRIES of running OSD TS on '$VMName' :")
 
         $Retries = $Retries + 1
@@ -38,17 +37,25 @@ function Update-VDIPool($Logger, $VMName, $PoolName) {
             continue
         }
 
-        $Logger.Info("Deployment succeedded ! Preparing snapshot.")
+        $Logger.Info("Deployment succeedded !")
+        $Logger.Info("Removing MECM Agent before taking snapshot")
+        ipconfig /flushdns
+        psexec -s \\$VMName c:\windows\ccmsetup\ccmsetup.exe /uninstall
 
+
+        $Logger.Info("Powering off VM.")
         $VMDriver.ShutdownVM($VMName)
 
         $timestamp = Get-Date -Format "yyyMMddhhmmss"
         $snapshotName = "VDI-$VMName-$timestamp"
+        $Logger.Info("Taking snapshot $snapshotName")
         $VMDriver.SnapshotVM($VMName, $SnapshotName)
-        $VMGenerationSuccess = $true
+        $VMBuildSuccess = $true
         break
     }
-    if ($VMGenerationSuccess -ne $true) { return $false }
+    if ($VMBuildSuccess -ne $true) { return $false }
+
+
     $Logger.Info("Starting VDI Pool regeneration.")
     $Logger.Info("TO BE IMPLEMENTED !")
 
