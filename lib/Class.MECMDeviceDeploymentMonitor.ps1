@@ -19,7 +19,7 @@ class MECMDeviceDeploymentMonitor {
     [string] $TSPackageId
     [string] $StartMarker
 
-    MECMDeviceDeploymentMonitor([Logger]$Logger,[string]$SMS_Server, [string]$SMS_SiteCode, [string]$TaskSequenceName, [string]$DeviceName){
+    MECMDeviceDeploymentMonitor([Logger]$Logger, [string]$SMS_Server, [string]$SMS_SiteCode, [string]$TaskSequenceName, [string]$DeviceName) {
         $this.Logger = $Logger
         $this.Logger.Debug("MECMDeviceDeploymentMonitor instance created")
         $this.Logger.Debug("$SMS_Server, $SMS_SiteCode, $TaskSequenceName, $DeviceName")
@@ -40,11 +40,11 @@ class MECMDeviceDeploymentMonitor {
         $this.CacheLastRenewed = (get-date).AddMinutes(-10)
     }
 
-    [string]_GetTimestamp(){
+    [string]_GetTimestamp() {
         return Get-Date -Format "yyyMMddhhmmss"
     }
 
-    [array]getDeploymentSteps(){
+    [array]getDeploymentSteps() {
         $this.Logger.Debug("getDeploymentSteps()")
 
         $ts = Get-Date
@@ -54,9 +54,9 @@ class MECMDeviceDeploymentMonitor {
             $this._updateCachedDeployments()
         }
         return $this._CachedDeployments  `
-            | Select @{N = "Date"; E = { Get-Date -Date ([DateTime]::ParseExact(($_.ExecutionTime -split '\+')[0], "yyyyMMddHHmmss.ffffff", $null)) -Format "yyyy/MM/dd HH:mm:ss" } }, * `
-            | Select Step, LastStatusMsgName, ActionName, ActionOutput, Date -First ([MECMDeviceDeploymentMonitor]::MaxSteps) `
-            | Sort-Object Date, Step
+        | Select @{N = "Date"; E = { Get-Date -Date ([DateTime]::ParseExact(($_.ExecutionTime -split '\+')[0], "yyyyMMddHHmmss.ffffff", $null)) -Format "yyyy/MM/dd HH:mm:ss" } }, * `
+        | Select Step, LastStatusMsgName, ActionName, ActionOutput, Date -First ([MECMDeviceDeploymentMonitor]::MaxSteps) `
+        | Sort-Object Date, Step
     }
 
     <#
@@ -65,7 +65,7 @@ class MECMDeviceDeploymentMonitor {
         return $true if the deployment has reached success step
         return $false if the deployment has reached falure step or timeout is reached
     #>
-    [boolean] WatchDeploymentProgress(){
+    [boolean] WatchDeploymentProgress() {
         $this.Logger.Info("Waiting 10 minutes for initial communication")
         $this.Logger.Verbose("Waiting for Step 1 of Task sequence")
         $stepReachedBeforeTimeout = $this.getStepWhenAvailable(1, 10 * 60)
@@ -104,7 +104,7 @@ class MECMDeviceDeploymentMonitor {
     }
 
     <# Save last SMS_TaskSequenceExecutionStatus result date, to detect only newer events #>
-    [void]_SetStartMarker(){
+    [void]_SetStartMarker() {
         $query = "SELECT * FROM SMS_TaskSequenceExecutionStatus ORDER BY ExecutionTime Desc"
         $this.Logger.Debug("executing WMI query : $query")
         $this.StartMarker = Get-WmiObject -ComputerName $this.SMS_Server -Namespace "Root\SMS\site_$($this.SMS_SiteCode)"  -Query $query  | Select -First 1 -ExpandProperty ExecutionTime
@@ -114,7 +114,7 @@ class MECMDeviceDeploymentMonitor {
     }
 
     <# Retrieve deployment information related to TSPackageId and DeviceResourceId. Only list events more recent than StartMarker#>
-    [void]_updateCachedDeployments(){
+    [void]_updateCachedDeployments() {
         $query = "SELECT * FROM SMS_TaskSequenceExecutionStatus WHERE ExecutionTime>'$($this.StartMarker)' AND PackageID='$($this.TSPackageId)' AND ResourceID='$($this.DeviceResourceId)' AND Step >= $($this.CurrentStep) ORDER BY ExecutionTime Desc"
         $this.Logger.Debug("executing WMI query : $query")
         $this._CachedDeployments = Get-WmiObject -ComputerName $this.SMS_Server -Namespace "Root\SMS\site_$($this.SMS_SiteCode)"  `
@@ -122,8 +122,8 @@ class MECMDeviceDeploymentMonitor {
         $this.CacheLastRenewed = Get-Date
     }
 
-    [object]getCurrentStep(){
-        return $this.getDeploymentSteps() | ?{$_.Step -eq $this.CurrentStep} | Select -Last 1 # sometimes there are multiple time the same step in the db (at different dates)
+    [object]getCurrentStep() {
+        return $this.getDeploymentSteps() | ? { $_.Step -eq $this.CurrentStep } | Select -Last 1 # sometimes there are multiple time the same step in the db (at different dates)
     }
 
 
@@ -132,49 +132,52 @@ class MECMDeviceDeploymentMonitor {
     #     return $this.waitUntilStep($stepNumber,60*60*24*15)
     # }
 
-    [object]getStepWhenAvailable($stepNumber,$maxWaitSeconds){
+    [object]getStepWhenAvailable($stepNumber, $maxWaitSeconds) {
         $this._SetStartMarker()
         $this.Logger.Debug("getStepWhenAvailable($stepNumber,$maxWaitSeconds)")
-        $noTimeout = $this.waitUntilStep($stepNumber,$maxWaitSeconds)
+        $noTimeout = $this.waitUntilStep($stepNumber, $maxWaitSeconds)
         if ($noTimeout) {
             $this.Logger.Debug("timeout was not reached")
             return $this.getCurrentStep()
-        } else {
+        }
+        else {
             $this.Logger.Warning("timeout was reached")
             return $null
         }
     }
 
 
-    [object]getStepNumberWhenAvailable($stepNumber,$maxWaitSeconds){
+    [object]getStepNumberWhenAvailable($stepNumber, $maxWaitSeconds) {
         $this.Logger.Debug("getStepNumberWhenAvailable($stepNumber,$maxWaitSeconds)")
-        $noTimeout = $this.waitUntilStep($stepNumber,$maxWaitSeconds)
+        $noTimeout = $this.waitUntilStep($stepNumber, $maxWaitSeconds)
         if ($noTimeout) {
             return $this.getCurrentStep()
-        } else {
+        }
+        else {
             return $null
         }
     }
 
 
     # [bool]waitForNextStep(){
-        #     return $this.waitForNextStep(60*60*24*15)
+    #     return $this.waitForNextStep(60*60*24*15)
 
-        # }
+    # }
 
-        [bool]waitForNextStep($maxWaitSeconds){
-            $this.Logger.Debug("waitForNextStep($maxWaitSeconds)")
-            $startTime = Get-Date
-            $waitDuration = 0
-            While($waitDuration -lt $maxWaitSeconds){
-                # Write-Host "Waiting for step $($this.CurrentStep + 1)  - Remaining waiting time : $($maxWaitSeconds - $waitDuration)"
-                $this.Logger.Debug("trying to get next step (CurrentStep=$($this.CurrentStep)")
-                $nextStep = $this.getDeploymentSteps() | Select -ExpandProperty Step | ?{ $_ -gt $this.CurrentStep } | Sort-Object | Select -First 1
-                if ($nextStep) {
-                    $this.Logger.Debug("nextStep = $nextStep")
-                    $this.CurrentStep = $nextStep
-                    return $true
-                } else {
+    [bool]waitForNextStep($maxWaitSeconds) {
+        $this.Logger.Debug("waitForNextStep($maxWaitSeconds)")
+        $startTime = Get-Date
+        $waitDuration = 0
+        While ($waitDuration -lt $maxWaitSeconds) {
+            # Write-Host "Waiting for step $($this.CurrentStep + 1)  - Remaining waiting time : $($maxWaitSeconds - $waitDuration)"
+            $this.Logger.Debug("trying to get next step (CurrentStep=$($this.CurrentStep)")
+            $nextStep = $this.getDeploymentSteps() | Select -ExpandProperty Step | ? { $_ -gt $this.CurrentStep } | Sort-Object | Select -First 1
+            if ($nextStep) {
+                $this.Logger.Debug("nextStep = $nextStep")
+                $this.CurrentStep = $nextStep
+                return $true
+            }
+            else {
                 $this.Logger.Debug("waiting 10 seconds")
                 Start-Sleep -Seconds 10
             }
@@ -199,7 +202,7 @@ class MECMDeviceDeploymentMonitor {
         $this.Logger.Debug("getStepWhenAvailableFromActionName($actionNames, $maxWaitSeconds)")
         $startTime = Get-Date
         $elapsedTime = 0
-        while($elapsedTime -le $maxWaitSeconds) {
+        while ($elapsedTime -le $maxWaitSeconds) {
             $elapsedTime = (New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds
             $remainingTime = $maxWaitSeconds - $elapsedTime
             $this.Logger.Debug("elapsetTime = $elapsedTime    remainingTime = $remainingTime")
@@ -212,24 +215,35 @@ class MECMDeviceDeploymentMonitor {
                 $this.Logger.Debug("action $($res.ActionName) found")
                 return $res
             }
-            $this.Logger.Verbose(" Step $($res.Step) : $($res.ActionName)")
+            $hide = $false
+            $type = ""
+            switch ($res.LastStatusMsgName) {
+                { $_ -like "*a group*" } { $hide = $true }
+                { $_ -like "*disabled*" } { $type = "SKIP (Disabled)" }
+                { $_ -like "*skipped*" } { $type = "SKIP" }
+                { $_ -like "*successfully completed an action*" } { $type = "ACTION - SUCCESS" }
+                { $_ -like "*failed executing an action*" } { $type = "ACTION - FAILURE" }
+                # Default {  }
+            }
+            if (!$hide) {$this.Logger.Verbose(" Step $("$($res.Step)".PadLeft(3)) : $("$($type)".PadRight(20)) - $($res.ActionName)")}
         }
         return $null
     }
 
-    [object]getNextStepWhenAvailable($maxWaitSeconds){
+    [object]getNextStepWhenAvailable($maxWaitSeconds) {
         $noTimeout = $this.waitForNextStep($maxWaitSeconds)
         if ($noTimeout) {
             return $this.getCurrentStep()
-        } else {
+        }
+        else {
             return $null
         }
     }
 
-    [bool]waitUntilStep($stepNumber,$maxWaitSeconds){
+    [bool]waitUntilStep($stepNumber, $maxWaitSeconds) {
         $startTime = Get-Date
         $elapsedTime = 0
-        while($this.CurrentStep -lt $stepNumber){
+        while ($this.CurrentStep -lt $stepNumber) {
             $elapsedTime = (New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds
             if ($elapsedTime -gt $maxWaitSeconds) { break }
             $this.waitForNextStep($maxWaitSeconds - $elapsedTime)
